@@ -7,7 +7,7 @@
 
 /* uart20 is connected to the on-board SAMD11 CMSIS-DAP/CDC bridge. */
 &uart20 {
-    current-speed = <115200>;
+    current-speed = <230400>;
     pinctrl-0 = <&uart20_default>;
     pinctrl-1 = <&uart20_sleep>;
     pinctrl-names = "default", "sleep";

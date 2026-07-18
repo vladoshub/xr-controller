@@ -7,7 +7,7 @@ project(xr_imu_xiao_nrf54l15_sense)
 
 target_sources(app PRIVATE
     src/main.c
-    src/xr_imu_v1.c
+    src/xr_controller_v1.c
 )
 
 target_include_directories(app PRIVATE include)

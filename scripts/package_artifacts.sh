@@ -18,7 +18,7 @@ done
 
 cp "${ROOT_DIR}/README.md" "${OUT_DIR}/README.md"
 cp "${ROOT_DIR}/VERSION" "${OUT_DIR}/VERSION"
-cp "${ROOT_DIR}/docs/xr_imu_v1.md" "${OUT_DIR}/xr_imu_v1.md"
+cp "${ROOT_DIR}/docs/xr_controller_v1.md" "${OUT_DIR}/xr_controller_v1.md"
 cp "${ROOT_DIR}/config/capture_service_cpp.yaml" "${OUT_DIR}/capture_service_cpp.yaml"
 (
   cd "${OUT_DIR}"

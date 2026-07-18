@@ -5,7 +5,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKSPACE_DIR="$(cd -- "${ROOT_DIR}/.." && pwd)"
 VENV_DIR="${WORKSPACE_DIR}/.venv-zephyr"
 PORT="${1:-/dev/ttyACM0}"
-BAUD="${2:-${XR_IMU_BAUD:-115200}}"
+BAUD="${2:-${XR_CONTROLLER_BAUD:-${XR_IMU_BAUD:-230400}}}"
 
 if [[ -f "${VENV_DIR}/bin/activate" ]]; then
   # shellcheck disable=SC1091

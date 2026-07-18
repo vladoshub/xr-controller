@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Probe common UART rates and report whether xr_imu_v1 framing is visible."""
+"""Probe common UART rates and report whether xr_controller_v1 framing is visible."""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +10,7 @@ try:
 except ImportError as exc:
     raise SystemExit("pyserial is required: pip install -r requirements-host.txt") from exc
 
-from xr_imu_v1 import MAGIC, StreamParser
+from xr_controller_v1 import MAGIC, StreamParser
 
 DEFAULT_BAUDS = (115200, 230400, 250000, 460800, 921600, 1000000)
 
@@ -63,7 +63,7 @@ def main() -> int:
         print(f"recommended baud: {best_baud} ({best_valid} valid packets)")
         return 0
 
-    print("no valid xr_imu_v1 packets found at the tested baud rates")
+    print("no valid xr_controller_v1 packets found at the tested baud rates")
     return 1
 
 

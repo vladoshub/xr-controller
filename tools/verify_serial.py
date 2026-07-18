@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a live xr_imu_v1 stream from capture hardware."""
+"""Validate a live xr_controller_v1 stream from capture hardware."""
 from __future__ import annotations
 
 import argparse
@@ -13,13 +13,13 @@ try:
 except ImportError as exc:
     raise SystemExit("pyserial is required: pip install -r requirements-host.txt") from exc
 
-from xr_imu_v1 import StreamParser, TIMESTAMP_VALID
+from xr_controller_v1 import StreamParser, TIMESTAMP_VALID
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", required=True, help="e.g. /dev/ttyACM0 or COM5")
-    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--baud", type=int, default=230400)
     parser.add_argument("--duration", type=float, default=10.0)
     parser.add_argument("--expected-rate", type=float, default=208.0)
     args = parser.parse_args()
@@ -94,7 +94,7 @@ def main() -> int:
     if bytes_read == 0:
         print("hint: no UART bytes received; press RESET or power-cycle the board", file=sys.stderr)
     elif count == 0 and not reported_status:
-        print("hint: bytes arrived but neither XIMU packets nor firmware status were decoded", file=sys.stderr)
+        print("hint: bytes arrived but neither XCTL packets nor firmware status were decoded", file=sys.stderr)
 
     if count == 0 or device_rate < minimum_rate or stream.bad_packets != 0:
         return 1

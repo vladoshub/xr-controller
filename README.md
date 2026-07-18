@@ -1,6 +1,6 @@
 # XR IMU firmware for XIAO nRF54L15 Sense
 
-Open-source upstream-Zephyr firmware that exposes the onboard LSM6DS3TR-C as a standalone `xr_imu_v1` source for XR Gate `capture_service_cpp`.
+Open-source upstream-Zephyr firmware that exposes the onboard LSM6DS3TR-C as a standalone `xr_controller_v1` source for XR Gate `capture_service_cpp`.
 
 ## Data path
 
@@ -8,8 +8,8 @@ Open-source upstream-Zephyr firmware that exposes the onboard LSM6DS3TR-C as a s
 LSM6DS3TR-C (400 kHz I2C, 208 Hz)
         -> Zephyr sensor API
         -> SI units: rad/s and m/s²
-        -> explicit xr_imu_v1 encoder + IEEE CRC32
-        -> uart20 at 115200 baud
+        -> explicit xr_controller_v1 encoder + IEEE CRC32
+        -> uart20 at 230400 baud
         -> onboard SAMD11 CMSIS-DAP USB CDC bridge
         -> /dev/ttyACM* or COM*
 ```
@@ -21,8 +21,8 @@ The firmware sends no text logs on the serial channel. It performs no orientatio
 - Output data rate: **208 Hz**
 - Gyroscope range: **±2000 dps**; transmitted in rad/s
 - Accelerometer range: **±16 g**; transmitted in m/s²
-- Packet size: **48 bytes**
-- Serial rate: **115200 baud, 8N1**
+- Packet size: **64 bytes**
+- Serial rate: **230400 baud, 8N1**
 - UART transport uses one asynchronous EasyDMA transfer per complete packet; it does not send the binary stream byte-by-byte with `uart_poll_out()`.
 - Axis order: native Zephyr/LSM6DSL XYZ order
 
@@ -113,8 +113,8 @@ imu:
     port:
       linux: /dev/ttyACM0
       windows: COM5
-    baud_rate: 115200
-    protocol: xr_imu_v1
+    baud_rate: 230400
+    protocol: xr_controller_v1
     timestamp_mode: device
     read_timeout_ms: 50
     max_packet_size: 256
@@ -127,15 +127,15 @@ For a stable Linux path, prefer the matching `/dev/serial/by-id/...` symlink aft
 
 Acquisition and serial output use separate threads. The acquisition loop never waits for UART transmission. If the 128-packet TX queue fills, the new sample is dropped and the source sequence advances, so the host can detect the loss instead of receiving stale timing.
 
-At 208 Hz, the binary payload is 9984 bytes/s before UART framing. With
-8N1 framing it consumes 99840 bit/s, which fits within the board's known-good
-115200-baud SAMD11 USB-UART path. Sampling deadlines are derived from a common
+At 208 Hz, the binary payload is 13312 bytes/s before UART framing. With
+8N1 framing it consumes 133120 bit/s, about 57.8% of the configured
+230400-baud SAMD11 USB-UART line rate. Sampling deadlines are derived from a common
 epoch, so the fractional 208 Hz period alternates between 4807 and 4808
 microseconds without cumulative integer-division drift.
 
 ## Protocol
 
-See [`docs/xr_imu_v1.md`](docs/xr_imu_v1.md). The implementation serializes fields explicitly in little-endian order and is cross-tested against Python's `zlib.crc32`.
+See [`docs/xr_controller_v1.md`](docs/xr_controller_v1.md). The implementation serializes fields explicitly in little-endian order and is cross-tested against Python's `zlib.crc32`.
 
 ## GitHub Actions
 
@@ -163,20 +163,19 @@ PRISTINE=always ./scripts/build.sh
 
 ### Serial framing diagnostics
 
-If the verifier reports many discarded bytes but zero `XIMU` packets, run:
+If the verifier reports many discarded bytes but zero `XCTL` packets, run:
 
 ```bash
 ./scripts/probe_serial.sh /dev/ttyACM0
 ```
 
-The default firmware and host configuration use 115200 baud, matching the
-upstream board console configuration and Seeed's documented serial-monitor
-setting. The packet rate is 208 Hz so the fixed 48-byte `xr_imu_v1` packets
-remain within the available 8N1 line rate.
+The default firmware and host configuration use 230400 baud. The packet
+rate is 208 Hz, so fixed 64-byte `xr_controller_v1` packets consume about
+57.8% of the available 8N1 line rate.
 `verify.sh` also accepts an explicit second argument for diagnostics:
 
 ```bash
-./scripts/verify.sh /dev/ttyACM0 115200
+./scripts/verify.sh /dev/ttyACM0 230400
 ```
 
 ### XIAO UART pin ownership
@@ -188,11 +187,11 @@ P2.7 overlaps the SWO/debug domain and this firmware does not use it.
 
 ### Startup diagnostics
 
-The UART remains a binary `xr_imu_v1` stream during normal operation. Short
+The UART remains a binary `xr_controller_v1` stream during normal operation. Short
 `XRIMU_STATUS:` lines are emitted only during startup or repeatedly when the
 firmware cannot initialize/read the IMU. `scripts/verify.sh` displays these
 lines before its packet statistics. The host parser can resynchronize on the
-next `XIMU` packet after a startup status line.
+next `XCTL` packet after a startup status line.
 
 
 ### `XRIMU_STATUS:IMU_NOT_READY`

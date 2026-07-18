@@ -52,17 +52,17 @@ PY_CONFIG
 
 cc -std=c17 -Wall -Wextra -Werror -pedantic \
   -I"${ROOT_DIR}/include" \
-  "${ROOT_DIR}/src/xr_imu_v1.c" \
-  "${ROOT_DIR}/tests/host/test_xr_imu_v1.c" \
-  -o "${BUILD_DIR}/test_xr_imu_v1"
+  "${ROOT_DIR}/src/xr_controller_v1.c" \
+  "${ROOT_DIR}/tests/host/test_xr_controller_v1.c" \
+  -o "${BUILD_DIR}/test_xr_controller_v1"
 
-"${BUILD_DIR}/test_xr_imu_v1" > "${BUILD_DIR}/c_packet.bin"
+"${BUILD_DIR}/test_xr_controller_v1" > "${BUILD_DIR}/c_packet.bin"
 python3 -m unittest discover -s "${ROOT_DIR}/tests/python" -p 'test_*.py' -v
 
 PYTHONPATH="${ROOT_DIR}/tools" python3 - "${BUILD_DIR}/c_packet.bin" <<'PY'
 from pathlib import Path
 import sys
-from xr_imu_v1 import decode, encode
+from xr_controller_v1 import decode, encode
 
 packet = Path(sys.argv[1]).read_bytes()
 sample = decode(packet)

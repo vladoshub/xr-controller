@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "xr_imu_v1.h"
+#include "xr_controller_v1.h"
 
 #define XR_IMU_SAMPLE_RATE_HZ 208U
 #define XR_IMU_SAMPLE_PERIOD_US_CEIL \
@@ -25,7 +25,7 @@
 #define XR_IMU_TX_PRIORITY 2
 
 struct tx_packet {
-    uint8_t bytes[XR_IMU_V1_PACKET_SIZE];
+    uint8_t bytes[XR_CONTROLLER_V1_PACKET_SIZE];
 };
 
 K_MSGQ_DEFINE(tx_queue, sizeof(struct tx_packet), XR_IMU_TX_QUEUE_DEPTH, 4);
@@ -41,9 +41,9 @@ static const struct gpio_dt_spec imu_power =
 #define XR_IMU_UART_MAX_LOAD_PERCENT 90U
 
 BUILD_ASSERT(
-    XR_IMU_SAMPLE_RATE_HZ * XR_IMU_V1_PACKET_SIZE * XR_IMU_UART_BITS_PER_BYTE * 100U <=
+    XR_IMU_SAMPLE_RATE_HZ * XR_CONTROLLER_V1_PACKET_SIZE * XR_IMU_UART_BITS_PER_BYTE * 100U <=
         XR_IMU_UART_BAUD * XR_IMU_UART_MAX_LOAD_PERCENT,
-    "xr_imu_v1 stream exceeds the configured UART throughput budget");
+    "xr_controller_v1 stream exceeds the configured UART throughput budget");
 
 static const struct device *const uart_dev = DEVICE_DT_GET(XR_IMU_UART_NODE);
 
@@ -295,8 +295,8 @@ int main(void)
     schedule_origin_us = monotonic_time_us();
 
     while (true) {
-        xr_imu_v1_sample_t sample = {
-            .flags = XR_IMU_V1_FLAG_TIMESTAMP_VALID,
+        xr_controller_v1_sample_t sample = {
+            .flags = XR_CONTROLLER_V1_FLAG_TIMESTAMP_VALID,
         };
         const uint64_t fetch_start_us = monotonic_time_us();
         const int fetch_rc = sensor_sample_fetch(imu_dev);
@@ -325,7 +325,7 @@ int main(void)
                 sample.accel_m_s2[axis] = sensor_value_to_float(&accel[axis]);
             }
 
-            xr_imu_v1_encode(packet.bytes, &sample);
+            xr_controller_v1_encode(packet.bytes, &sample);
 
             /* Never block acquisition on serial output. A full queue drops this
              * sample; the monotonic sequence exposes the loss to the host.

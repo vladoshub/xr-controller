@@ -41,7 +41,7 @@ Clone this repository as a direct child of an empty workspace directory:
 ```bash
 mkdir -p ~/src/xr-imu-workspace
 cd ~/src/xr-imu-workspace
-git clone <repository-url> xr-imu-xiao-nrf54l15-sense
+git clone https://github.com/vladoshub/xr-controller xr-imu-xiao-nrf54l15-sense
 cd xr-imu-xiao-nrf54l15-sense
 ./scripts/setup_ubuntu24.sh
 ```

@@ -8,7 +8,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 
-from xr_imu_v1 import (  # noqa: E402
+from xr_controller_v1 import (  # noqa: E402
     CRC_OFFSET,
     PACKET_SIZE,
     Sample,
@@ -25,6 +25,10 @@ class ProtocolTest(unittest.TestCase):
             timestamp_us=0x0102030405060708,
             gyro_rad_s=(1.0, -2.0, 0.5),
             accel_m_s2=(9.80665, 0.0, -9.80665),
+            buttons=0x000005A5,
+            axes=(-32768, 32767, 1234, -4321),
+            battery_mv=4123,
+            controller_status=0x55AA,
         )
 
     def test_round_trip(self) -> None:
@@ -33,6 +37,10 @@ class ProtocolTest(unittest.TestCase):
         decoded = decode(packet)
         self.assertEqual(decoded.sequence, self.sample.sequence)
         self.assertEqual(decoded.timestamp_us, self.sample.timestamp_us)
+        self.assertEqual(decoded.buttons, self.sample.buttons)
+        self.assertEqual(decoded.axes, self.sample.axes)
+        self.assertEqual(decoded.battery_mv, self.sample.battery_mv)
+        self.assertEqual(decoded.controller_status, self.sample.controller_status)
         for actual, expected in zip(decoded.gyro_rad_s, self.sample.gyro_rad_s):
             self.assertAlmostEqual(actual, expected, places=5)
         for actual, expected in zip(decoded.accel_m_s2, self.sample.accel_m_s2):

@@ -1,0 +1,19 @@
+imu:
+  enabled: true
+  driver: serial
+  slot_count: 2048
+  output:
+    stream: imu0
+    frame: imu0
+  raw:
+    enabled: false
+  serial:
+    port:
+      linux: /dev/ttyACM0
+      windows: COM5
+    baud_rate: 115200
+    protocol: xr_imu_v1
+    timestamp_mode: device
+    read_timeout_ms: 50
+    max_packet_size: 256
+  stall_exit_ms: 2000

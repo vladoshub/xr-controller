@@ -1,0 +1,45 @@
+/*
+ * Copyright 2026 XR IMU contributors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/i2c/i2c.h>
+
+/* uart20 is connected to the on-board SAMD11 CMSIS-DAP/CDC bridge. */
+&uart20 {
+    current-speed = <115200>;
+    pinctrl-0 = <&uart20_default>;
+    pinctrl-1 = <&uart20_sleep>;
+    pinctrl-names = "default", "sleep";
+    status = "okay";
+};
+
+/*
+ * The upstream board DTS enables spi22 even though its SCK/MISO pins overlap
+ * uart20 RX/TX (P1.8/P1.9). Disable it or its pinctrl can steal the UART pins
+ * connected to the on-board SAMD11 CDC bridge.
+ */
+&spi22 {
+    status = "disabled";
+};
+
+/* P2.7 is also used by the SWO/debug domain; this application does not need
+ * the second UART, so keep it disabled while CMSIS-DAP is attached.
+ */
+&uart21 {
+    status = "disabled";
+};
+
+/* Keep the two 6-byte sensor register reads comfortably below 2.4 ms. */
+&i2c30 {
+    clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&lsm6ds3tr_c {
+    status = "okay";
+
+    /* Power is controlled by P0.1. Initialize only after main() has
+     * explicitly enabled the rail and verified the I2C identity.
+     */
+    zephyr,deferred-init;
+};

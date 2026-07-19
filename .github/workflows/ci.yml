@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run protocol tests
+        run: ./scripts/test_host.sh
+
+      - name: Validate shell scripts
+        run: |
+          for script in scripts/*.sh; do
+            bash -n "$script"
+          done
+
+  firmware:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: xr-imu-xiao-nrf54l15-sense
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Zephyr workspace
+        uses: zephyrproject-rtos/action-zephyr-setup@v1
+        with:
+          app-path: xr-imu-xiao-nrf54l15-sense
+          toolchains: arm-zephyr-eabi
+          sdk-version: 1.0.1
+
+      - name: Build firmware
+        run: |
+          west build \
+            --board xiao_nrf54l15/nrf54l15/cpuapp \
+            --build-dir build/xiao_nrf54l15 \
+            xr-imu-xiao-nrf54l15-sense
+
+      - name: Package firmware
+        env:
+          BUILD_DIR: ${{ github.workspace }}/build/xiao_nrf54l15
+          OUT_DIR: ${{ github.workspace }}/dist
+        run: xr-imu-xiao-nrf54l15-sense/scripts/package_artifacts.sh
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: xr-imu-xiao-nrf54l15-sense
+          path: dist/
+          if-no-files-found: error

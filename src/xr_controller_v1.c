@@ -57,6 +57,31 @@ uint32_t xr_controller_crc32_ieee(const uint8_t *data, size_t size)
     return crc ^ 0xffffffffU;
 }
 
+void xr_controller_identity_v1_encode(
+    uint8_t packet[XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE],
+    const xr_controller_identity_v1_t *identity)
+{
+    uint8_t uid_size = identity->device_uid_size;
+    if (uid_size > XR_CONTROLLER_DEVICE_UID_MAX_SIZE) {
+        uid_size = XR_CONTROLLER_DEVICE_UID_MAX_SIZE;
+    }
+
+    memset(packet, 0, XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE);
+    packet[0] = XR_CONTROLLER_IDENTITY_V1_MAGIC_0;
+    packet[1] = XR_CONTROLLER_IDENTITY_V1_MAGIC_1;
+    packet[2] = XR_CONTROLLER_IDENTITY_V1_MAGIC_2;
+    packet[3] = XR_CONTROLLER_IDENTITY_V1_MAGIC_3;
+    packet[4] = XR_CONTROLLER_IDENTITY_V1_VERSION;
+    packet[5] = identity->flags;
+    put_u16_le(&packet[6], XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE);
+    packet[8] = uid_size;
+    packet[9] = XR_CONTROLLER_V1_VERSION;
+    memcpy(&packet[12], identity->device_uid, uid_size);
+    put_u32_le(&packet[XR_CONTROLLER_IDENTITY_V1_CRC_OFFSET],
+               xr_controller_crc32_ieee(
+                   packet, XR_CONTROLLER_IDENTITY_V1_CRC_OFFSET));
+}
+
 void xr_controller_v1_encode(
     uint8_t packet[XR_CONTROLLER_V1_PACKET_SIZE],
     const xr_controller_v1_sample_t *sample)

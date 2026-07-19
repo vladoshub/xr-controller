@@ -49,6 +49,23 @@ int main(void)
            xr_controller_crc32_ieee(packet,
                                      XR_CONTROLLER_V1_CRC_OFFSET));
 
+
+    xr_controller_identity_v1_t identity = {
+        .flags = XR_CONTROLLER_IDENTITY_V1_FLAG_DEVICE_UID_VALID,
+        .device_uid_size = 8U,
+        .device_uid = {0x01U, 0x23U, 0x45U, 0x67U,
+                       0x89U, 0xabU, 0xcdU, 0xefU},
+    };
+    uint8_t identity_packet[XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE];
+    xr_controller_identity_v1_encode(identity_packet, &identity);
+    assert(identity_packet[0] == 'X' && identity_packet[1] == 'C' &&
+           identity_packet[2] == 'I' && identity_packet[3] == 'D');
+    assert(identity_packet[8] == identity.device_uid_size);
+    assert(identity_packet[9] == XR_CONTROLLER_V1_VERSION);
+    assert(read_u32_le(&identity_packet[XR_CONTROLLER_IDENTITY_V1_CRC_OFFSET]) ==
+           xr_controller_crc32_ieee(
+               identity_packet, XR_CONTROLLER_IDENTITY_V1_CRC_OFFSET));
+
     fwrite(packet, 1U, sizeof(packet), stdout);
     return 0;
 }

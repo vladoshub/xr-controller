@@ -44,6 +44,7 @@ for required in (
     "CONFIG_REGULATOR_FIXED=y",
     "CONFIG_UART_ASYNC_API=y",
     "CONFIG_UART_ASYNC_TX_CACHE_SIZE=64",
+    "CONFIG_HWINFO=y",
 ):
     if required not in text.splitlines():
         raise SystemExit(f"prj.conf is missing required option: {required}")

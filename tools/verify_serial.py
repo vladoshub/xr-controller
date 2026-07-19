@@ -89,6 +89,11 @@ def main() -> int:
     print(f"sequence drops:     {sequence_drops}")
     print(f"bad CRC/packets:    {stream.bad_packets}")
     print(f"discarded bytes:    {stream.discarded_bytes}")
+    if stream.identities:
+        identity = stream.identities[-1]
+        print(f"device UID:         {identity.device_uid_hex or '<unavailable>'}")
+    else:
+        print("device UID:         <no XCID frame received>")
 
     minimum_rate = args.expected_rate * 0.90
     if bytes_read == 0:

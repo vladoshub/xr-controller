@@ -10,6 +10,9 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from xr_controller_v1 import (  # noqa: E402
     CRC_OFFSET,
+    Identity,
+    encode_identity,
+    decode_identity,
     PACKET_SIZE,
     Sample,
     StreamParser,
@@ -45,6 +48,21 @@ class ProtocolTest(unittest.TestCase):
             self.assertAlmostEqual(actual, expected, places=5)
         for actual, expected in zip(decoded.accel_m_s2, self.sample.accel_m_s2):
             self.assertAlmostEqual(actual, expected, places=5)
+
+
+    def test_identity_round_trip_and_mixed_stream(self) -> None:
+        identity = Identity(bytes.fromhex("0123456789abcdef"))
+        packet = encode_identity(identity)
+        decoded = decode_identity(packet)
+        self.assertEqual(decoded.device_uid_hex, "0123456789abcdef")
+
+        parser = StreamParser()
+        sample_packet = encode(self.sample)
+        parsed = parser.feed(packet[:9])
+        self.assertEqual(parsed, [])
+        parsed += parser.feed(packet[9:] + sample_packet)
+        self.assertEqual([sample.sequence for sample in parsed], [self.sample.sequence])
+        self.assertEqual(parser.identities[-1].device_uid_hex, "0123456789abcdef")
 
     def test_crc_rejection(self) -> None:
         packet = bytearray(encode(self.sample))

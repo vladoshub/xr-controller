@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Host-side xr_controller_v1 codec and stream parser."""
+"""Host-side xr_controller_v1 codec and mixed XCTL/XCID stream parser."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,6 +17,27 @@ CRC_OFFSET = 60
 _STRUCT_WITHOUT_CRC = struct.Struct("<4sBBHIQ3f3fI4hHH")
 _CRC = struct.Struct("<I")
 
+IDENTITY_MAGIC = b"XCID"
+IDENTITY_VERSION = 1
+IDENTITY_DEVICE_UID_VALID = 0x01
+IDENTITY_PACKET_SIZE = 32
+IDENTITY_CRC_OFFSET = 28
+DEVICE_UID_MAX_SIZE = 16
+_IDENTITY_PREFIX = struct.Struct("<4sBBHBBH16s")
+
+
+@dataclass(frozen=True)
+class Identity:
+    device_uid: bytes
+    flags: int = IDENTITY_DEVICE_UID_VALID
+    controller_protocol_version: int = VERSION
+
+    @property
+    def device_uid_hex(self) -> str:
+        if not (self.flags & IDENTITY_DEVICE_UID_VALID):
+            return ""
+        return self.device_uid.hex()
+
 
 @dataclass(frozen=True)
 class Sample:
@@ -29,6 +50,53 @@ class Sample:
     axes: tuple[int, int, int, int] = (0, 0, 0, 0)
     battery_mv: int = 0
     controller_status: int = 0
+
+
+def encode_identity(identity: Identity) -> bytes:
+    uid = bytes(identity.device_uid)
+    if len(uid) > DEVICE_UID_MAX_SIZE:
+        raise ValueError(f"device UID is too long: {len(uid)} > {DEVICE_UID_MAX_SIZE}")
+    prefix = _IDENTITY_PREFIX.pack(
+        IDENTITY_MAGIC,
+        IDENTITY_VERSION,
+        identity.flags,
+        IDENTITY_PACKET_SIZE,
+        len(uid),
+        identity.controller_protocol_version,
+        0,
+        uid.ljust(DEVICE_UID_MAX_SIZE, b"\0"),
+    )
+    assert len(prefix) == IDENTITY_CRC_OFFSET
+    return prefix + _CRC.pack(zlib.crc32(prefix) & 0xFFFFFFFF)
+
+
+def decode_identity(packet: bytes) -> Identity:
+    if len(packet) != IDENTITY_PACKET_SIZE:
+        raise ValueError(
+            f"identity packet size {len(packet)} != {IDENTITY_PACKET_SIZE}"
+        )
+    fields = _IDENTITY_PREFIX.unpack(packet[:IDENTITY_CRC_OFFSET])
+    magic, version, flags, size, uid_size, protocol_version, _reserved, uid = fields
+    expected_crc = _CRC.unpack(packet[IDENTITY_CRC_OFFSET:])[0]
+    actual_crc = zlib.crc32(packet[:IDENTITY_CRC_OFFSET]) & 0xFFFFFFFF
+    if magic != IDENTITY_MAGIC:
+        raise ValueError(f"bad identity magic: {magic!r}")
+    if version != IDENTITY_VERSION:
+        raise ValueError(f"bad identity version: {version}")
+    if size != IDENTITY_PACKET_SIZE:
+        raise ValueError(f"bad identity embedded size: {size}")
+    if uid_size > DEVICE_UID_MAX_SIZE:
+        raise ValueError(f"bad device UID size: {uid_size}")
+    if actual_crc != expected_crc:
+        raise ValueError(
+            f"identity CRC mismatch: got 0x{expected_crc:08x}, "
+            f"expected 0x{actual_crc:08x}"
+        )
+    return Identity(
+        device_uid=uid[:uid_size],
+        flags=flags,
+        controller_protocol_version=protocol_version,
+    )
 
 
 def encode(sample: Sample) -> bytes:
@@ -92,20 +160,23 @@ def decode(packet: bytes) -> Sample:
 
 
 class StreamParser:
-    """Resynchronizing parser for arbitrary serial byte chunks."""
+    """Resynchronizing parser for mixed periodic XCID and 208 Hz XCTL frames."""
 
     def __init__(self) -> None:
         self._buffer = bytearray()
         self.bad_packets = 0
         self.discarded_bytes = 0
+        self.identities: list[Identity] = []
 
     def feed(self, data: bytes) -> list[Sample]:
         self._buffer.extend(data)
         samples: list[Sample] = []
 
         while True:
-            magic_pos = self._buffer.find(MAGIC)
-            if magic_pos < 0:
+            sample_pos = self._buffer.find(MAGIC)
+            identity_pos = self._buffer.find(IDENTITY_MAGIC)
+            positions = [pos for pos in (sample_pos, identity_pos) if pos >= 0]
+            if not positions:
                 keep = min(len(self._buffer), len(MAGIC) - 1)
                 self.discarded_bytes += len(self._buffer) - keep
                 if keep:
@@ -114,13 +185,26 @@ class StreamParser:
                     self._buffer.clear()
                 break
 
+            magic_pos = min(positions)
             if magic_pos:
                 self.discarded_bytes += magic_pos
                 del self._buffer[:magic_pos]
 
+            if self._buffer.startswith(IDENTITY_MAGIC):
+                if len(self._buffer) < IDENTITY_PACKET_SIZE:
+                    break
+                candidate = bytes(self._buffer[:IDENTITY_PACKET_SIZE])
+                try:
+                    self.identities.append(decode_identity(candidate))
+                    del self._buffer[:IDENTITY_PACKET_SIZE]
+                except ValueError:
+                    self.bad_packets += 1
+                    self.discarded_bytes += 1
+                    del self._buffer[0]
+                continue
+
             if len(self._buffer) < PACKET_SIZE:
                 break
-
             candidate = bytes(self._buffer[:PACKET_SIZE])
             try:
                 samples.append(decode(candidate))

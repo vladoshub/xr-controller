@@ -10,7 +10,7 @@ try:
 except ImportError as exc:
     raise SystemExit("pyserial is required: pip install -r requirements-host.txt") from exc
 
-from xr_controller_v1 import MAGIC, StreamParser
+from xr_controller_v1 import IDENTITY_MAGIC, MAGIC, StreamParser
 
 DEFAULT_BAUDS = (115200, 230400, 250000, 460800, 921600, 1000000)
 
@@ -48,10 +48,11 @@ def main() -> int:
         parser2 = StreamParser()
         samples = parser2.feed(bytes(data))
         magic_count = bytes(data).count(MAGIC)
+        identity_count = bytes(data).count(IDENTITY_MAGIC)
         preview = bytes(data[:24]).hex(" ") if data else "<no data>"
         print(
             f"{baud:7d}: bytes={len(data):7d} "
-            f"magic={magic_count:4d} valid={len(samples):4d} "
+            f"magic={magic_count:4d} identity={identity_count:3d} valid={len(samples):4d} "
             f"bad={parser2.bad_packets:4d} preview={preview}"
         )
 

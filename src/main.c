@@ -5,6 +5,7 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/hwinfo.h>
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/uart.h>
@@ -23,9 +24,12 @@
 #define XR_IMU_TX_QUEUE_DEPTH 128U
 #define XR_IMU_TX_STACK_SIZE 1536U
 #define XR_IMU_TX_PRIORITY 2
+#define XR_CONTROLLER_IDENTITY_PERIOD_SAMPLES XR_IMU_SAMPLE_RATE_HZ
+#define XR_IMU_TX_MAX_PACKET_SIZE XR_CONTROLLER_V1_PACKET_SIZE
 
 struct tx_packet {
-    uint8_t bytes[XR_CONTROLLER_V1_PACKET_SIZE];
+    uint16_t size;
+    uint8_t bytes[XR_IMU_TX_MAX_PACKET_SIZE];
 };
 
 K_MSGQ_DEFINE(tx_queue, sizeof(struct tx_packet), XR_IMU_TX_QUEUE_DEPTH, 4);
@@ -41,7 +45,9 @@ static const struct gpio_dt_spec imu_power =
 #define XR_IMU_UART_MAX_LOAD_PERCENT 90U
 
 BUILD_ASSERT(
-    XR_IMU_SAMPLE_RATE_HZ * XR_CONTROLLER_V1_PACKET_SIZE * XR_IMU_UART_BITS_PER_BYTE * 100U <=
+    ((XR_IMU_SAMPLE_RATE_HZ * XR_CONTROLLER_V1_PACKET_SIZE) +
+      XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE) *
+        XR_IMU_UART_BITS_PER_BYTE * 100U <=
         XR_IMU_UART_BAUD * XR_IMU_UART_MAX_LOAD_PERCENT,
     "xr_controller_v1 stream exceeds the configured UART throughput budget");
 
@@ -203,7 +209,7 @@ static void tx_thread(void *arg1, void *arg2, void *arg3)
 
     while (true) {
         (void)k_msgq_get(&tx_queue, &packet, K_FOREVER);
-        if (uart_write_raw(packet.bytes, sizeof(packet.bytes)) < 0) {
+        if (uart_write_raw(packet.bytes, packet.size) < 0) {
             k_sleep(K_MSEC(10));
         }
     }
@@ -216,7 +222,13 @@ int main(void)
 {
     struct sensor_value gyro[3];
     struct sensor_value accel[3];
-    struct tx_packet packet;
+    struct tx_packet packet = {
+        .size = XR_CONTROLLER_V1_PACKET_SIZE,
+    };
+    struct tx_packet identity_packet = {
+        .size = XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE,
+    };
+    xr_controller_identity_v1_t identity = {0};
     uint32_t sequence = 0U;
     uint64_t schedule_origin_us;
     uint64_t sample_index = 0U;
@@ -233,6 +245,21 @@ int main(void)
     }
 
     uart_write_text("XRIMU_STATUS:BOOT\n");
+
+    const ssize_t device_uid_size = hwinfo_get_device_id(
+        identity.device_uid, sizeof(identity.device_uid));
+    if (device_uid_size > 0) {
+        identity.device_uid_size = (uint8_t)MIN(
+            (size_t)device_uid_size, sizeof(identity.device_uid));
+        identity.flags = XR_CONTROLLER_IDENTITY_V1_FLAG_DEVICE_UID_VALID;
+        uart_write_text("XRIMU_STATUS:DEVICE_UID_READY\n");
+    } else {
+        identity.device_uid_size = 0U;
+        identity.flags = 0U;
+        uart_write_text("XRIMU_STATUS:DEVICE_UID_UNAVAILABLE\n");
+    }
+    xr_controller_identity_v1_encode(identity_packet.bytes, &identity);
+    (void)k_msgq_put(&tx_queue, &identity_packet, K_NO_WAIT);
 
     if (!device_is_ready(imu_i2c.bus)) {
         fatal_signal("XRIMU_STATUS:I2C30_NOT_READY\n");
@@ -331,6 +358,13 @@ int main(void)
              * sample; the monotonic sequence exposes the loss to the host.
              */
             (void)k_msgq_put(&tx_queue, &packet, K_NO_WAIT);
+
+            /* Repeat identity once per second so hosts attaching after boot can
+             * learn the hardware UID. This adds a separate 32-byte frame and
+             * never replaces, delays, or changes the 208 Hz IMU schedule. */
+            if ((sample.sequence % XR_CONTROLLER_IDENTITY_PERIOD_SAMPLES) == 0U) {
+                (void)k_msgq_put(&tx_queue, &identity_packet, K_NO_WAIT);
+            }
         } else {
             ++consecutive_fetch_errors;
             if (consecutive_fetch_errors == XR_IMU_SAMPLE_RATE_HZ) {

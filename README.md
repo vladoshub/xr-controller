@@ -127,8 +127,10 @@ For a stable Linux path, prefer the matching `/dev/serial/by-id/...` symlink aft
 
 Acquisition and serial output use separate threads. The acquisition loop never waits for UART transmission. If the 128-packet TX queue fills, the new sample is dropped and the source sequence advances, so the host can detect the loss instead of receiving stale timing.
 
-At 208 Hz, the binary payload is 13312 bytes/s before UART framing. With
-8N1 framing it consumes 133120 bit/s, about 57.8% of the configured
+At 208 Hz, the unchanged `XCTL` payload is 13312 bytes/s before UART framing.
+With 8N1 framing it consumes 133120 bit/s. The separate 32-byte `XCID` identity
+frame is emitted about once per second and adds only 320 bit/s, so the IMU
+sample rate remains 208 Hz. Total use is still about 57.9% of the configured
 230400-baud SAMD11 USB-UART line rate. Sampling deadlines are derived from a common
 epoch, so the fractional 208 Hz period alternates between 4807 and 4808
 microseconds without cumulative integer-division drift.
@@ -187,11 +189,13 @@ P2.7 overlaps the SWO/debug domain and this firmware does not use it.
 
 ### Startup diagnostics
 
-The UART remains a binary `xr_controller_v1` stream during normal operation. Short
+The UART remains a mixed binary `xr_controller_v1` stream during normal operation:
+208 Hz `XCTL` samples plus periodic `XCID` hardware identity frames. Short
 `XRIMU_STATUS:` lines are emitted only during startup or repeatedly when the
 firmware cannot initialize/read the IMU. `scripts/verify.sh` displays these
 lines before its packet statistics. The host parser can resynchronize on the
-next `XCTL` packet after a startup status line.
+next `XCTL` or `XCID` packet after a startup status line. `verify.sh` prints the
+received hardware UID when available.
 
 
 ### `XRIMU_STATUS:IMU_NOT_READY`

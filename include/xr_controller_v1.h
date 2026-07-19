@@ -26,6 +26,18 @@ extern "C" {
 #define XR_CONTROLLER_V1_CRC_OFFSET 60U
 #define XR_CONTROLLER_V1_AXIS_COUNT 4U
 
+/* Periodic identity frame interleaved with XCTL packets. It does not replace
+ * or resize the 64-byte IMU packet, so the IMU sampling rate remains 208 Hz. */
+#define XR_CONTROLLER_IDENTITY_V1_MAGIC_0 ((uint8_t)'X')
+#define XR_CONTROLLER_IDENTITY_V1_MAGIC_1 ((uint8_t)'C')
+#define XR_CONTROLLER_IDENTITY_V1_MAGIC_2 ((uint8_t)'I')
+#define XR_CONTROLLER_IDENTITY_V1_MAGIC_3 ((uint8_t)'D')
+#define XR_CONTROLLER_IDENTITY_V1_VERSION 1U
+#define XR_CONTROLLER_IDENTITY_V1_FLAG_DEVICE_UID_VALID 0x01U
+#define XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE 32U
+#define XR_CONTROLLER_IDENTITY_V1_CRC_OFFSET 28U
+#define XR_CONTROLLER_DEVICE_UID_MAX_SIZE 16U
+
 enum xr_controller_v1_button_bits {
     XR_CONTROLLER_V1_BUTTON_A           = UINT32_C(1) << 0,
     XR_CONTROLLER_V1_BUTTON_B           = UINT32_C(1) << 1,
@@ -47,6 +59,12 @@ enum xr_controller_v1_axis_index {
     XR_CONTROLLER_V1_AXIS_GRIP = 3,
 };
 
+typedef struct xr_controller_identity_v1 {
+    uint8_t flags;
+    uint8_t device_uid_size;
+    uint8_t device_uid[XR_CONTROLLER_DEVICE_UID_MAX_SIZE];
+} xr_controller_identity_v1_t;
+
 typedef struct xr_controller_v1_sample {
     uint32_t sequence;
     uint64_t timestamp_us;
@@ -60,6 +78,10 @@ typedef struct xr_controller_v1_sample {
 } xr_controller_v1_sample_t;
 
 uint32_t xr_controller_crc32_ieee(const uint8_t *data, size_t size);
+
+void xr_controller_identity_v1_encode(
+    uint8_t packet[XR_CONTROLLER_IDENTITY_V1_PACKET_SIZE],
+    const xr_controller_identity_v1_t *identity);
 
 void xr_controller_v1_encode(
     uint8_t packet[XR_CONTROLLER_V1_PACKET_SIZE],
